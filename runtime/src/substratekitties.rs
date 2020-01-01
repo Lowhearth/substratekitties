@@ -18,7 +18,11 @@ pub struct Kitty<Hash, Balance> {
 
 decl_storage! {
     trait Store for Module<T: Trait> as KittyStorage {        
-        Kitties: map T::AccountId => Kitty<T::Hash, T::Balance>;
+        Kitties: map T::Hash => Kitty<T::Hash, T::Balance>;
+        //Kitties: map T::Hash => Kitty<T::Hash, T::Balance>;
+        KittyOwner: map T::Hash => T::AccountId;
+        OwnerKitty: map T::AccountId => T::Hash;
+        Nonce: u64;
     }
 }
 
@@ -27,16 +31,22 @@ decl_module! {
 
       fn create_cat(origin) -> Result {
         let _sender = ensure_signed(origin)?;
-        let has_of_zero = <T as system::Trait>::Hashing::hash_of(&0);
+        let nonce = <Nonce<T>>::get();
+        let random_seed = <system::Module<T>>::random_seed();
+        let random_hash = (random_seed, &_sender, nonce).using_encoded(<T as system::Trait>::Hashing::hash);
+        <Nonce<T>>::mutate(|n| *n += 1);
+        let hash_of_zero = <T as system::Trait>::Hashing::hash_of(&0);
         let zero_balance = <T::Balance as As<u64>>::sa(0);        
+        
         let cat = Kitty {
-          id: has_of_zero,
-          dna: has_of_zero,
+          id: random_hash,
+          dna: random_hash,
           price: zero_balance,
           gen: 0,
         };
-
-        <Kitties<T>>::insert(_sender, cat);
+        <KittyOwner<T>>::insert(&random_hash, &_sender );
+        <Kitties<T>>::insert(&random_hash, cat);
+        <OwnerKitty<T>>::insert(&_sender, &random_hash);
 
         Ok(())
       }
